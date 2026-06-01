@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SAGARD Portfolio Intelligence</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">SAGARD</p>
+          <h1>Portfolio Intelligence</h1>
+        </div>
+        <nav class="nav-stack" aria-label="Main navigation">
+          <button class="nav-item active" data-page-link="workflow">Workflow</button>
+          <button class="nav-item" data-page-link="companies">Companies</button>
+          <button class="nav-item" data-page-link="prompts">Sector prompts</button>
+        </nav>
+        <div id="configStatus" class="sidebar-status"></div>
+      </aside>
+
+      <main class="main-area">
+        <div id="globalNotice" class="result-box global-notice"></div>
+
+        <section id="page-workflow" class="page active">
+          <header class="page-header">
+            <div>
+              <p class="eyebrow">Local processing</p>
+              <h2>Workflow and configuration</h2>
+            </div>
+            <button id="refreshBtn" class="secondary">Refresh</button>
+          </header>
+
+          <div class="info-grid">
+            <article class="info-card">
+              <h3>Create demo data</h3>
+              <p>Generates sample text-based PDFs under <code>data/input</code>. One company can have multiple PDFs, and all PDFs in the company folder are included in processing.</p>
+              <button id="demoDataBtn" class="secondary">Create demo data</button>
+            </article>
+            <article class="info-card">
+              <h3>Sync local folder</h3>
+              <p>Scans <code>data/input/&lt;company_slug&gt;/</code>, registers new PDFs in SQLite, detects changed files, and updates the processing queue. Sync does not call OpenAI.</p>
+              <button id="syncBtn">Sync local folder</button>
+            </article>
+          </div>
+
+          <div id="syncResult" class="result-box"></div>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>AI circuit breaker</h3>
+              <span class="muted">Saved locally in .env</span>
+            </div>
+            <form id="configForm" class="config-grid">
+              <label class="checkbox-label">
+                <input id="useAiInput" type="checkbox" />
+                Use OpenAI for processing
+              </label>
+              <label>
+                Model
+                <input id="modelInput" type="text" placeholder="Example: gpt-4.1-nano" />
+              </label>
+              <label>
+                API key
+                <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Leave blank to keep existing key" />
+              </label>
+              <label class="checkbox-label">
+                <input id="clearKeyInput" type="checkbox" />
+                Clear saved API key
+              </label>
+              <button type="submit">Save AI config</button>
+            </form>
+            <p class="muted small-copy">When OpenAI is disabled or config is incomplete, processing creates section-level prompt previews and stores them like normal results.</p>
+          </section>
+
+          <section class="panel">
+            <details>
+              <summary class="details-summary">Advanced global prompt template</summary>
+              <form id="templateForm" class="form-block advanced-form">
+                <p class="muted">This wrapper controls the non-section instructions in the full OpenAI request.</p>
+                <label>
+                  Description
+                  <input id="templateDescription" type="text" />
+                </label>
+                <label>
+                  Template
+                  <textarea id="templateText" rows="12"></textarea>
+                </label>
+                <div class="target-grid">
+                  <label>
+                    Test company
+                    <select id="templateTestCompany"></select>
+                  </label>
+                  <label>
+                    Test sector
+                    <select id="templateTestSector"></select>
+                  </label>
+                </div>
+                <div id="templateVariables" class="meta-line"></div>
+                <div class="button-row">
+                  <button id="testTemplateBtn" type="button" class="secondary">Test template</button>
+                  <button id="saveTemplateBtn" type="submit" disabled>Save template</button>
+                </div>
+                <p id="templateSaveHint" class="muted small-copy">Test this exact template before saving.</p>
+              </form>
+            </details>
+          </section>
+
+          <section class="panel" id="templateTestPanel">
+            <div class="panel-header">
+              <div>
+                <h3>Template test result</h3>
+                <p class="muted">Runs the whole sector bundle with the edited global template.</p>
+              </div>
+              <span id="templateTestMeta" class="muted"></span>
+            </div>
+            <div id="templateTestResult" class="detail-empty">No template test has been run in this session.</div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Processing queue</h3>
+              <span id="folderStatus" class="muted"></span>
+            </div>
+            <div id="queueList" class="stack"></div>
+          </section>
+        </section>
+
+        <section id="page-companies" class="page">
+          <header class="page-header">
+            <div>
+              <p class="eyebrow">Portfolio</p>
+              <h2>Companies and generated analysis</h2>
+            </div>
+          </header>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Companies</h3>
+              <span class="muted">Click a company to inspect persisted outputs</span>
+            </div>
+            <div id="companyList" class="company-grid"></div>
+          </section>
+
+          <section class="panel detail-panel">
+            <div class="panel-header">
+              <h3 id="detailTitle">Company analysis</h3>
+              <span id="detailMeta" class="muted"></span>
+            </div>
+            <div id="companyDetail" class="detail-empty">Select or process a company to view generated sections.</div>
+          </section>
+        </section>
+
+        <section id="page-prompts" class="page">
+          <header class="page-header">
+            <div>
+              <p class="eyebrow">Configurable analysis</p>
+              <h2>Sector prompt management</h2>
+            </div>
+          </header>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h3>Prompt test target</h3>
+                <p class="muted">Draft tests run against selected company documents without replacing the company analysis.</p>
+              </div>
+              <label class="inline-select">
+                Company
+                <select id="testCompany"></select>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel" id="draftTestPanel">
+            <div class="panel-header">
+              <div>
+                <h3>Draft test result</h3>
+                <p class="muted">Review the generated result here, then save the prompt only if this output looks right.</p>
+              </div>
+              <span id="draftTestMeta" class="muted"></span>
+            </div>
+            <div id="draftTestResult" class="detail-empty">No draft test has been run in this session.</div>
+          </section>
+
+          <div class="prompt-layout">
+            <form id="sectorForm" class="panel form-block">
+              <h3>Add sector</h3>
+              <label>
+                Name
+                <input id="sectorName" type="text" placeholder="Infrastructure" />
+              </label>
+              <label>
+                Description
+                <input id="sectorDescription" type="text" placeholder="Asset-heavy infrastructure companies" />
+              </label>
+              <button type="submit" class="secondary">Create sector</button>
+            </form>
+
+            <form id="sectionForm" class="panel form-block">
+              <h3>Add prompt section</h3>
+              <label>
+                Sector
+                <select id="sectionSector"></select>
+              </label>
+              <label>
+                Section name
+                <input id="sectionName" type="text" placeholder="Liquidity Review" />
+              </label>
+              <label>
+                Section type
+                <select id="sectionType">
+                  <option value="metric_cards">metric_cards</option>
+                  <option value="key_value_table">key_value_table</option>
+                  <option value="time_series_table">time_series_table</option>
+                  <option value="narrative">narrative</option>
+                  <option value="risk_list">risk_list</option>
+                  <option value="scenario_inputs">scenario_inputs</option>
+                </select>
+              </label>
+              <label>
+                Prompt
+                <textarea id="sectionPrompt" rows="4" placeholder="Extract cash runway, liquidity risks, and evidence from the documents."></textarea>
+              </label>
+              <div class="button-row">
+                <button id="testNewSectionBtn" type="button" class="secondary">Test draft</button>
+                <button id="saveNewSectionBtn" type="submit" disabled>Save section</button>
+              </div>
+              <p id="newSectionSaveHint" class="muted small-copy">Test this draft against a company before saving it to the sector bundle.</p>
+            </form>
+          </div>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Sector description / guidance</h3>
+              <span class="muted">Included in the global prompt context</span>
+            </div>
+            <form id="sectorGuidanceForm" class="form-block">
+              <label>
+                Selected sector description
+                <textarea id="sectorGuidanceText" rows="3"></textarea>
+              </label>
+              <button type="submit" class="secondary">Save sector guidance</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>Edit existing sections</h3>
+              <label class="inline-select">
+                Sector
+                <select id="editSector"></select>
+              </label>
+            </div>
+            <div id="promptSections" class="section-list"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
